@@ -44,7 +44,7 @@ console.log("PORT:", PORT);
 console.log("=====================");
 
 if (!TOKEN) {
-  console.error("HATA: TOKEN eksik. Render Environment kısmına TOKEN ekle.");
+  console.error("HATA: TOKEN eksik.");
   process.exit(1);
 }
 
@@ -242,7 +242,7 @@ async function sendLeaveEmbed(member) {
 }
 
 /* =========================
-   DISCORD EVENTS
+   EVENTS
 ========================= */
 client.once("ready", async () => {
   console.log(`${client.user.tag} olarak giriş yapıldı.`);
@@ -295,7 +295,6 @@ client.on("messageCreate", async (message) => {
       }
 
       const channel = message.channel;
-
       if (!channel || channel.type !== ChannelType.GuildText) {
         return message.reply("Bu komut sadece yazı kanalında kullanılabilir.");
       }
@@ -324,7 +323,6 @@ client.on("messageCreate", async (message) => {
       }
 
       const channel = message.channel;
-
       if (!channel || channel.type !== ChannelType.GuildText) {
         return message.reply("Bu komut sadece yazı kanalında kullanılabilir.");
       }
@@ -363,6 +361,10 @@ client.on("shardError", (error) => {
   console.error("Shard error:", error);
 });
 
+client.on("invalidated", () => {
+  console.error("Bot oturumu invalid oldu. Token resetlenmiş olabilir.");
+});
+
 /* =========================
    PROCESS ERRORS
 ========================= */
@@ -374,14 +376,19 @@ process.on("uncaughtException", (error) => {
   console.error("Uncaught Exception:", error);
 });
 
+process.on("exit", (code) => {
+  console.log("Process exit code:", code);
+});
+
 /* =========================
    LOGIN
 ========================= */
-client.login(TOKEN)
-  .then(() => {
-    console.log("Discord login isteği başarılı gönderildi.");
-  })
-  .catch((err) => {
+(async () => {
+  try {
+    console.log("Discord login deneniyor...");
+    await client.login(TOKEN);
+    console.log("Discord login başarılı.");
+  } catch (err) {
     console.error("Discord login hatası:", err);
-    process.exit(1);
-  });
+  }
+})();
