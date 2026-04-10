@@ -28,12 +28,23 @@ const AUTO_JOIN_VOICE = String(process.env.AUTO_JOIN_VOICE || "false").toLowerCa
 const VOICE_CHANNEL_ID = String(process.env.VOICE_CHANNEL_ID || "").trim();
 const STREAM_URL = String(process.env.STREAM_URL || "https://www.twitch.tv/discord").trim();
 const PORT = Number(process.env.PORT) || 3000;
+const HOST = "0.0.0.0";
 
 /* =========================
-   BASIC CHECKS
+   STARTUP LOGS
 ========================= */
+console.log("===== ENV CHECK =====");
+console.log("TOKEN var mı:", TOKEN ? "Evet" : "Hayır");
+console.log("PREFIX:", PREFIX || "Yok");
+console.log("WELCOME_CHANNEL_ID:", WELCOME_CHANNEL_ID || "Yok");
+console.log("AUTO_JOIN_VOICE:", AUTO_JOIN_VOICE);
+console.log("VOICE_CHANNEL_ID:", VOICE_CHANNEL_ID || "Yok");
+console.log("STREAM_URL:", STREAM_URL || "Yok");
+console.log("PORT:", PORT);
+console.log("=====================");
+
 if (!TOKEN) {
-  console.error("TOKEN eksik. .env dosyasına TOKEN ekle.");
+  console.error("HATA: TOKEN eksik. Render Environment kısmına TOKEN ekle.");
   process.exit(1);
 }
 
@@ -59,8 +70,8 @@ app.get("/", (req, res) => {
   res.status(200).send("Bot aktif.");
 });
 
-app.listen(PORT, () => {
-  console.log(`Web server aktif. Port: ${PORT}`);
+app.listen(PORT, HOST, () => {
+  console.log(`Web server aktif. http://${HOST}:${PORT}`);
 });
 
 /* =========================
@@ -100,7 +111,7 @@ async function tryAutoJoinVoice() {
 
   const channel = client.channels.cache.get(VOICE_CHANNEL_ID);
   if (!channel) {
-    console.log("VOICE_CHANNEL_ID bulundu ama kanal cache'de yok.");
+    console.log("Ses kanalı bulunamadı. VOICE_CHANNEL_ID yanlış olabilir.");
     return;
   }
 
@@ -112,7 +123,7 @@ async function tryAutoJoinVoice() {
   try {
     const existing = getVoiceConnection(channel.guild.id);
     if (existing) {
-      console.log("Bot zaten bir ses bağlantısına sahip.");
+      console.log("Bot zaten ses kanalına bağlı.");
       return;
     }
 
@@ -178,7 +189,9 @@ async function sendJoinEmbed(member) {
     })
     .setTimestamp();
 
-  await channel.send({ embeds: [embed] }).catch(() => {});
+  await channel.send({ embeds: [embed] }).catch((err) => {
+    console.error("Join embed gönderme hatası:", err);
+  });
 }
 
 async function sendLeaveEmbed(member) {
@@ -223,11 +236,13 @@ async function sendLeaveEmbed(member) {
     })
     .setTimestamp();
 
-  await channel.send({ embeds: [embed] }).catch(() => {});
+  await channel.send({ embeds: [embed] }).catch((err) => {
+    console.error("Leave embed gönderme hatası:", err);
+  });
 }
 
 /* =========================
-   EVENTS
+   DISCORD EVENTS
 ========================= */
 client.once("ready", async () => {
   console.log(`${client.user.tag} olarak giriş yapıldı.`);
@@ -261,7 +276,6 @@ client.on("voiceStateUpdate", async () => {
   if (!targetChannel || targetChannel.type !== ChannelType.GuildVoice) return;
 
   const connection = getVoiceConnection(targetChannel.guild.id);
-
   if (!connection) {
     await tryAutoJoinVoice();
   }
@@ -283,7 +297,7 @@ client.on("messageCreate", async (message) => {
       const channel = message.channel;
 
       if (!channel || channel.type !== ChannelType.GuildText) {
-        return message.reply("Bu komut sadece yazı kanallarında kullanılabilir.");
+        return message.reply("Bu komut sadece yazı kanalında kullanılabilir.");
       }
 
       await channel.permissionOverwrites.edit(message.guild.roles.everyone, {
@@ -312,7 +326,7 @@ client.on("messageCreate", async (message) => {
       const channel = message.channel;
 
       if (!channel || channel.type !== ChannelType.GuildText) {
-        return message.reply("Bu komut sadece yazı kanallarında kullanılabilir.");
+        return message.reply("Bu komut sadece yazı kanalında kullanılabilir.");
       }
 
       await channel.permissionOverwrites.edit(message.guild.roles.everyone, {
@@ -322,7 +336,7 @@ client.on("messageCreate", async (message) => {
       const embed = new EmbedBuilder()
         .setColor(0x57f287)
         .setTitle("🔓 Kanal Açıldı")
-        .setDescription(`${channel} başarıyla tekrar açıldı.`)
+        .setDescription(`${channel} başarıyla açıldı.`)
         .addFields({
           name: "Yetkili",
           value: `${message.author}`,
@@ -337,8 +351,20 @@ client.on("messageCreate", async (message) => {
   }
 });
 
+client.on("error", (err) => {
+  console.error("Client error:", err);
+});
+
+client.on("warn", (info) => {
+  console.warn("Client warn:", info);
+});
+
+client.on("shardError", (error) => {
+  console.error("Shard error:", error);
+});
+
 /* =========================
-   ERROR HANDLERS
+   PROCESS ERRORS
 ========================= */
 process.on("unhandledRejection", (reason) => {
   console.error("Unhandled Rejection:", reason);
@@ -348,4 +374,14 @@ process.on("uncaughtException", (error) => {
   console.error("Uncaught Exception:", error);
 });
 
-client.login(TOKEN);
+/* =========================
+   LOGIN
+========================= */
+client.login(TOKEN)
+  .then(() => {
+    console.log("Discord login isteği başarılı gönderildi.");
+  })
+  .catch((err) => {
+    console.error("Discord login hatası:", err);
+    process.exit(1);
+  });
